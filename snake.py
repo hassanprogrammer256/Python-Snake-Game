@@ -107,6 +107,9 @@ class GameSoundService:
     def play_game_over_sound(self) -> None:
         self.__play(self.game_over_sound_file)
 
+    def stop_music(self) -> None:
+        pygame.mixer.music.unload()
+
     @staticmethod
     def __play(file: str, loops=0) -> None:
         pygame.mixer.music.unload()
@@ -130,8 +133,8 @@ class Game:
         self.score = 0
         self.crawl_size = 10
 
-        self.system_font_service_small = SystemFontServiceSmall()
-        self.system_font_service_large = SystemFontServiceLarge()
+        self.font_small = SystemFontServiceSmall()
+        self.font_large = SystemFontServiceLarge()
         self.game_sound_service = GameSoundService()
 
         self.direction_changes = (self.crawl_size, 0) # The changes in displacement in both x and y direction
@@ -185,7 +188,7 @@ class Game:
 
     def draw_score_board(self):
         score_position = Position(10, 5)
-        self.system_font_service_small.draw_text("Score: {}".format(self.score), self.window, score_position, pygame.Color("white"))
+        self.font_small.draw_text("Score: {}".format(self.score), self.window, score_position, pygame.Color("white"))
     
     def draw_game_panel_separator(self):
         pygame.gfxdraw.hline(self.window, 0, self.window_width, self.window_top_margin, 
@@ -234,10 +237,15 @@ class Game:
     
     def game_over(self):
         self.clear_screen()
+        self.immobilize_snake()
         self.draw_score_board()
         self.draw_game_panel_separator()
-        self.system_font_service_large.draw_text_at_center("Game Over :(", self.window, pygame.Color("red"))
+        self.game_sound_service.stop_music()
+        self.font_large.draw_text_at_center("Game Over :(", self.window, pygame.Color("red"))
         self.game_sound_service.play_game_over_sound()
+
+    def immobilize_snake(self):
+        self.direction_changes = (0, 0)
 
     def clear_screen(self) -> None:
         self.window.fill(self.window_fill_color)
@@ -280,26 +288,4 @@ if __name__ == "__main__":
     pygame.init()
     game = Game()
     game.start()
-
-
-class GameEventsService:
-    def __init__(self):
-        self.all_events = rx.timer(0, 0).pipe(
-            rx_ops.map(lambda _: pygame.event.get()),
-            rx_ops.filter(lambda events: events != []),
-            rx_ops.filter(lambda events: filter(lambda event: event.type != pygame.NOEVENT, events))
-        )
-        self.arrow_keys_events = self.all_events.pipe(
-            rx_ops.filter(lambda events: filter(lambda event: event.type == pygame.KEYDOWN, events)),
-            rx_ops.filter(lambda events: filter(self.is_arrow_key_event, events))
-        )
-        self.quit_event = self.all_events.pipe(
-            rx_ops.filter(lambda events: filter(lambda event: event.type == pygame.QUIT, events))
-        )
     
-    @staticmethod
-    def is_arrow_key_event(event):
-        return (event.key == pygame.K_LEFT) or \
-        (event.key == pygame.K_UP) or \
-        (event.key == pygame.K_DOWN) or \
-        (event.key == pygame.K_RIGHT)
