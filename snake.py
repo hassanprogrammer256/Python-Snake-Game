@@ -1,120 +1,17 @@
+import sys
 import random
+import os
+
 import pygame
-import time
 import pygame.gfxdraw
-import rx
-import rx.operators as rx_ops
+import pygame_widgets
+from pygame_widgets.button import Button
 
-class Position:
-    def __init__(self, x: int, y: int):
-        self.x = x
-        self.y = y
+sys.path.insert(0, os.path.dirname("."))
 
-
-class Snake:
-    def __init__(self):
-        self.__position = Position(100, 50)
-
-        self.size = 10
-        self.body_color: pygame.Color = pygame.Color("green")
-        self.body = [[100, 50], [90, 50], [80, 50], [70, 50]]
-    
-    def get_position(self):
-        return self.__position
-
-    def move(self, dx: int, dy: int) -> None:
-        self.__position.x += dx
-        self.__position.y += dy
-        self.body.insert(0, [self.__position.x, self.__position.y])
-        self.body.pop()
-
-    def grow(self) -> None:
-        self.body.insert(0, [self.__position.x, self.__position.y])
-    
-    def draw(self, surface: pygame.Surface) -> None:
-        for block in self.body:
-            block_rect = pygame.Rect(block[0], block[1], self.size, self.size)
-            pygame.draw.rect(surface, self.body_color, block_rect)
-
-    def has_eaten_itself(self):
-        for i in range(1, len(self.body)):
-            block = self.body[i]
-            if block[0] == self.__position.x and block[1] == self.__position.y:
-                return True
-        return False
-
-
-class Fruit:
-    def __init__(self, position: Position, size: int=10):
-        self.__position = position
-        self.__size = size
-        self.__color = pygame.Color("red")
-        self.__fruit = pygame.Rect(self.__position.x, self.__position.y, self.__size, self.__size)
-    
-    def draw(self, surface: pygame.Surface) -> None:
-        pygame.draw.rect(surface, self.__color, self.__fruit)
-    
-    def move(self, dx: int, dy: int) -> None:
-        self.__position.x += dx
-        self.__position.y += dy
-        self.__fruit.move_ip(self.__position.x, self.__position.y)
-
-    def get_position(self) -> Position:
-        return self.__position
-
-
-class SystemFontService:
-    def __init__(self, font_size: int, name: str="times new roman"):
-        self.__font = pygame.font.SysFont(name, size=font_size)
-        self.__font_size = font_size
-        self.center_margin = 100
-
-    def draw_text(self, text: str, surface: pygame.Surface, position: Position, color: pygame.Color) -> None:
-        text_surface = self.__font.render(text, True, color)
-        surface.blit(text_surface, (position.x, position.y))
-    
-    def draw_text_at_center(self, text: str, surface: pygame.Surface, color: pygame.Color) -> None:
-        text_surface = self.__font.render(text, True, color)
-        text_rect = text_surface.get_rect()
-        surface_dimensions = surface.get_size()
-        text_rect.midtop = (surface_dimensions[0]//2, surface_dimensions[1]//2 - self.center_margin)
-        surface.blit(text_surface, text_rect)
-
-class SystemFontServiceSmall(SystemFontService):
-    def __init__(self, name: str = "times new roman"):
-        super().__init__(18, name)
-
-class SystemFontServiceLarge(SystemFontService):
-    def __init__(self, name: str = "times new roman"):
-        super().__init__(44, name)
-
-
-class GameSoundService:
-    def __init__(self) -> None:
-        self.background_music_file: str = "./sounds/background.ogg"
-        self.fruit_eaten_sound_file: str = "./sounds/fruit_eaten.wav"
-        self.game_over_sound_file: str = "./sounds/game_over.wav"
-        self.volume: float = 5.0
-        pygame.mixer.music.set_volume(self.volume)
-
-    def play_background_music(self) -> None:
-        self.__play(self.background_music_file, loops=-1)
-    
-    def play_fruit_eaten_sound(self) -> None:
-        self.__play(self.fruit_eaten_sound_file)
-        pygame.mixer.music.queue(self.background_music_file)
-    
-    def play_game_over_sound(self) -> None:
-        self.__play(self.game_over_sound_file)
-
-    def stop_music(self) -> None:
-        pygame.mixer.music.unload()
-
-    @staticmethod
-    def __play(file: str, loops=0) -> None:
-        pygame.mixer.music.unload()
-        pygame.mixer.music.load(file)
-        pygame.mixer.music.play(loops)
+from game_objects import Snake, Fruit
+from services import LargeFontService, SmallFontService, GameSoundService
+from utils import Position
 
 
 class Game:
@@ -125,50 +22,52 @@ class Game:
         self.window_height = 500
         self.window_dimensions = (self.window_width, self.window_height)
         self.window_caption = "Snake Game By Kirabo Ibrahim <3"
-        
+        self.window = pygame.display.set_mode(self.window_dimensions)
+        self.window.fill(self.window_fill_color)
+        pygame.display.set_icon(pygame.image.load("./images/icon.png"))
+        pygame.display.set_caption(self.window_caption)
 
         self.snake = None
+        self.starting_snake_position = Position(100, 50)
+        self.snake_crawl_unit_size = 10
+        self.snake_displacement = (self.snake_crawl_unit_size, 0)
+        self.snake_direction = "R"
+        self.snake_size = self.snake_crawl_unit_size
         self.fruit = None
-        self.score_size = 10
-        self.score = 0
-        self.crawl_size = 10
+        self.eaten_fruit_reward = 10
+        self.player_score = 0
 
-        self.font_small = SystemFontServiceSmall()
-        self.font_large = SystemFontServiceLarge()
+        self.font_small = SmallFontService()
+        self.font_large = LargeFontService()
         self.game_sound_service = GameSoundService()
 
-        self.direction_changes = (self.crawl_size, 0) # The changes in displacement in both x and y direction
-        self.direction = "R"
-        self.quit_game = False
-
-        self.framerate = 10
+        self.frame_rate = 10
         self.clock = pygame.time.Clock()
 
     def start(self):
-        self.window = pygame.display.set_mode(self.window_dimensions)
-        self.window.fill(self.window_fill_color)
-        pygame.display.set_caption(self.window_caption)
-        
         self.game_sound_service.play_background_music()
-        
-        self.spawn_fruit()
         self.spawn_snake()
+        self.spawn_fruit()
 
-        while not self.quit_game:
+        quit_game, game_over = False, False
+        while not quit_game and not game_over:
             self.clear_screen()
             self.draw_score_board()
             self.draw_game_panel_separator()
 
-            for event in pygame.event.get():
+            events = pygame.event.get()
+            for event in events:
                 if self.is_quit_event(event):
-                    self.quit_game = True
-                self.direction_changes = self.get_direction_changes(event)
+                    quit_game = True
 
-            self.snake.move(self.direction_changes[0], self.direction_changes[1])
+                self.snake_displacement = self.get_displacement(event)
+
+            self.snake_direction = self.get_snake_direction()
+            self.snake.move(self.snake_displacement[0], self.snake_displacement[1])
             self.snake.draw(self.window)
 
             if self.is_game_over():
-                self.game_over()
+                game_over = True
             else:
                 if self.has_snake_eaten_fruit():
                     self.update_player_score()
@@ -176,23 +75,26 @@ class Game:
                     self.game_sound_service.play_fruit_eaten_sound()
                     self.spawn_fruit()
                 else:
+                    # Fruit has not been eaten by the snake, re draw it at the same position
                     self.re_draw_fruit()
 
             pygame.display.update()
-            self.clock.tick(self.framerate)
-
+            self.clock.tick(self.frame_rate)
+        if game_over:
+            self.draw_game_over_screen()
         self.quit()
 
     def update_player_score(self) -> None:
-        self.score += self.score_size
+        self.player_score += self.eaten_fruit_reward
 
-    def draw_score_board(self):
-        score_position = Position(10, 5)
-        self.font_small.draw_text("Score: {}".format(self.score), self.window, score_position, pygame.Color("white"))
-    
-    def draw_game_panel_separator(self):
-        pygame.gfxdraw.hline(self.window, 0, self.window_width, self.window_top_margin, 
-                            pygame.Color("white"))
+    def draw_score_board(self) -> None:
+        player_score_position = Position(10, 5)
+        self.font_small.draw_text("Score: {}".format(self.player_score), self.window, player_score_position,
+                                  pygame.Color("white"))
+
+    def draw_game_panel_separator(self) -> None:
+        pygame.gfxdraw.hline(self.window, 0, self.window_width, self.window_top_margin,
+                             pygame.Color("white"))
 
     def spawn_fruit(self) -> None:
         fruit_position = self.generate_fruit_position()
@@ -201,18 +103,20 @@ class Game:
 
     def generate_fruit_position(self) -> Position:
         """
-        Movement of the snake is increments of crawl_size, so the position of the fruit should be a multiple of 
-        crawl size in order to avoid misalignment btn the snake body and the fruit
+        Movement of the snake is increments of snake_crawl_unit_size, so the position of the fruit should
+        be a multiple of crawl size in order to avoid misalignment btn the snake body and the fruit
         """
-        position_x = random.randint(1, self.window_width//self.crawl_size) * self.crawl_size
-        position_y = random.randint(self.window_top_margin//self.crawl_size, self.window_height//self.crawl_size) * self.crawl_size
+        position_x = random.randint(1, self.window_width // self.snake_crawl_unit_size) * self.snake_crawl_unit_size
+        position_y = random.randint(self.window_top_margin // self.snake_crawl_unit_size,
+                                    self.window_height // self.snake_crawl_unit_size - self.snake_size) * \
+                     self.snake_crawl_unit_size
         return Position(position_x, position_y)
 
-    def re_draw_fruit(self):
+    def re_draw_fruit(self) -> None:
         self.fruit.draw(self.window)
 
     def spawn_snake(self) -> None:
-        self.snake = Snake()
+        self.snake = Snake(self.starting_snake_position, self.snake_size)
         self.snake.draw(self.window)
 
     def has_snake_eaten_fruit(self) -> bool:
@@ -231,61 +135,144 @@ class Game:
         snake_position = self.snake.get_position()
         if snake_position.x < 0 or snake_position.x > self.window_width - self.snake.size:
             return True
-        if snake_position.y < self.window_top_margin or snake_position.y > self.window_height - self.snake.size:
+        if snake_position.y < self.window_top_margin or \
+                snake_position.y > self.window_height - self.snake.size:
             return True
         return False
-    
-    def game_over(self):
+
+    def draw_game_over_screen(self) -> None:
         self.clear_screen()
-        self.immobilize_snake()
+        self.game_sound_service.play_game_over_sound()
         self.draw_score_board()
         self.draw_game_panel_separator()
-        self.game_sound_service.stop_music()
         self.font_large.draw_text_at_center("Game Over :(", self.window, pygame.Color("red"))
-        self.game_sound_service.play_game_over_sound()
+        self.font_small.draw_text("Press [SPACE] to restart game", self.window,
+                                  Position(110, 300), pygame.Color("white"))
 
-    def immobilize_snake(self):
-        self.direction_changes = (0, 0)
+        quit_game, restart_game = False, False
+        while not quit_game and not restart_game:
+            events = pygame.event.get()
+            for event in events:
+                if self.is_quit_event(event):
+                    quit_game = True
+                if self.is_space_bar_key_event(event):
+                    restart_game = True
+            pygame.display.update()
+
+        if restart_game:
+            self.restart()
+        self.quit()
+
+    @staticmethod
+    def is_space_bar_key_event(event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                return True
+        return False
 
     def clear_screen(self) -> None:
         self.window.fill(self.window_fill_color)
 
-    def quit(self) -> None:
+    def get_snake_direction(self) -> str:
+        """ Get the snake's current direction of movement,
+        The snake is either moving left, right, up or down
+        """
+        displacement_x = self.snake_displacement[0]
+        displacement_y = self.snake_displacement[1]
+        if displacement_x > 0:
+            return "R"
+        elif displacement_x < 0:
+            return "L"
+        if displacement_y > 0:
+            return "D"
+        elif displacement_y < 0:
+            return "U"
+
+    def get_displacement(self, event: pygame.event.Event) -> tuple[int, int]:
+        if self.is_arrow_key_pressed_event(event):
+            if event.key == pygame.K_LEFT and self.snake_direction != "R":
+                return -1 * self.snake_crawl_unit_size, 0
+            elif event.key == pygame.K_RIGHT and self.snake_direction != "L":
+                return self.snake_crawl_unit_size, 0
+            elif event.key == pygame.K_UP and self.snake_direction != "D":
+                return 0, -1 * self.snake_crawl_unit_size
+            elif event.key == pygame.K_DOWN and self.snake_direction != "U":
+                return 0, self.snake_crawl_unit_size
+        return self.snake_displacement
+
+    def restart(self) -> None:
+        self.reset_game()
+        self.start()
+
+    def reset_game(self) -> None:
+        self.player_score = 0
+        self.snake_displacement = (self.snake_crawl_unit_size, 0)
+        self.snake_direction = "R"
+
+    @staticmethod
+    def is_arrow_key_pressed_event(event: pygame.event.Event) -> bool:
+        if event.type == pygame.KEYDOWN:
+            return (event.key == pygame.K_LEFT) or (event.key == pygame.K_UP) or (event.key == pygame.K_DOWN) or \
+                   (event.key == pygame.K_RIGHT)
+        return False
+
+    @staticmethod
+    def quit() -> None:
         pygame.quit()
+        sys.exit()
 
     @staticmethod
     def is_quit_event(event: pygame.event.Event) -> bool:
         return event.type == pygame.QUIT
-    
-    def get_direction_changes(self, event: pygame.event.Event) -> tuple[int, int]:
-        if self.is_arrow_key_pressed_event(event):
-            if event.key == pygame.K_LEFT and self.direction != "R":
-                self.direction = "L"
-                return (-1 * self.crawl_size, 0)
-            elif event.key == pygame.K_RIGHT and self.direction != "L":
-                self.direction = "R"
-                return (self.crawl_size, 0)     
-            elif event.key == pygame.K_UP and self.direction != "D":
-                self.direction = "U"
-                return (0, -1 * self.crawl_size)
-            elif event.key == pygame.K_DOWN and self.direction != "U":
-                self.direction = "D"
-                return (0, self.crawl_size)
-        return self.direction_changes
-    
-    @staticmethod
-    def is_arrow_key_pressed_event(event: pygame.event.Event) -> bool:
-        if event.type == pygame.KEYDOWN:
-            return (event.key == pygame.K_LEFT) or \
-            (event.key == pygame.K_UP) or \
-            (event.key == pygame.K_DOWN) or \
-            (event.key == pygame.K_RIGHT)
-        return False
+
+    def draw_startup_screen(self):
+        startup_image = pygame.image.load("./images/background.png")
+        self.window.blit(startup_image, startup_image.get_rect())
+        self.draw_start_button()
+        self.draw_exit_button()
+        self.game_sound_service.play_snake_hissing_sound()
+
+        quit_game = False
+        while not quit_game:
+            events = pygame.event.get()
+            for event in events:
+                if self.is_quit_event(event):
+                    quit_game = True
+
+            pygame_widgets.update(events)
+            pygame.display.update()
+        self.quit()
+
+    def draw_start_button(self) -> None:
+        start_button_width, start_button_height = 200, 100
+        start_button_position_x, start_button_position_y = self.window_width // 2 - 100, self.window_height // 2 - 100
+        start_button = Button(self.window, start_button_position_x, start_button_position_y, start_button_width,
+                              start_button_height, text="START", font=self.font_large.get_font(),
+                              textColour=(255, 255, 255), inactiveColour=(97, 118, 75), radius=20, onClick=self.start
+                              )
+
+    def draw_exit_button(self) -> None:
+        exit_button_width, exit_button_height = 200, 100
+        exit_button_position_x, exit_button_position_y = self.window_width // 2 - 100, self.window_height // 2 + 90
+        exit_button = Button(self.window, exit_button_position_x, exit_button_position_y, exit_button_width,
+                             exit_button_height, text="EXIT", font=self.font_large.get_font(),
+                             textColour=(255, 255, 255), inactiveColour=(97, 118, 75), radius=20, onClick=self.quit
+                             )
+
+    def draw_restart_button(self) -> None:
+        restart_button_width, restart_button_height = 200, 100
+        restart_button_position_x, restart_button_position_y = self.window_width // 2 - 100, self.window_height // 2 + 90
+        restart_button = Button(self.window, restart_button_position_x, restart_button_position_y, restart_button_width,
+                                restart_button_height, text="RESTART", font=self.font_large.get_font(),
+                                textColour=(255, 255, 255), inactiveColour=(97, 118, 75), radius=20, onClick=self.start
+                                )
 
 
 if __name__ == "__main__":
-    pygame.mixer.pre_init(44100, -16, 1, 512)
     pygame.init()
-    game = Game()
-    game.start()
-    
+    try:
+        game = Game()
+        game.draw_startup_screen()
+    except KeyboardInterrupt:
+        pygame.quit()
+        sys.exit()
