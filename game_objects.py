@@ -7,9 +7,9 @@ class Snake:
     def __init__(self, position: Position, size: int = 10):
         self.__position = Position(position.x, position.y)
 
-        self.size = size
-        self.body_color: pygame.Color = pygame.Color("green")
-        self.body = [[position.x, position.y], [position.x - size, 50], [position.x - 2 * size, 50],
+        self.__size = size
+        self.__body_color: pygame.Color = pygame.Color("green")
+        self.__body = [[position.x, position.y], [position.x - size, 50], [position.x - 2 * size, 50],
                      [position.x - 3 * size, 50]]
 
     def get_position(self):
@@ -18,20 +18,20 @@ class Snake:
     def move(self, dx: int, dy: int) -> None:
         self.__position.x += dx
         self.__position.y += dy
-        self.body.insert(0, [self.__position.x, self.__position.y])
-        self.body.pop()
+        self.__body.insert(0, [self.__position.x, self.__position.y])
+        self.__body.pop()
 
     def grow(self) -> None:
-        self.body.insert(0, [self.__position.x, self.__position.y])
+        self.__body.insert(0, [self.__position.x, self.__position.y])
 
     def draw(self, surface: pygame.Surface) -> None:
-        for block in self.body:
-            block_rect = pygame.Rect(block[0], block[1], self.size, self.size)
-            pygame.draw.rect(surface, self.body_color, block_rect)
+        for block in self.__body:
+            block_rect = pygame.Rect(block[0], block[1], self.__size, self.__size)
+            pygame.draw.rect(surface, self.__body_color, block_rect)
 
     def has_eaten_itself(self):
-        for i in range(1, len(self.body)):
-            block = self.body[i]
+        for i in range(1, len(self.__body)):
+            block = self.__body[i]
             if block[0] == self.__position.x and block[1] == self.__position.y:
                 return True
         return False

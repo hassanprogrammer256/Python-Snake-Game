@@ -133,10 +133,10 @@ class Game:
 
     def has_snake_collided_with_walls(self) -> bool:
         snake_position = self.snake.get_position()
-        if snake_position.x < 0 or snake_position.x > self.window_width - self.snake.size:
+        if snake_position.x < 0 or snake_position.x > self.window_width - self.snake_size:
             return True
         if snake_position.y < self.window_top_margin or \
-                snake_position.y > self.window_height - self.snake.size:
+                snake_position.y > self.window_height - self.snake_size:
             return True
         return False
 
