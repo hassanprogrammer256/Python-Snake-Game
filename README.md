@@ -5,7 +5,7 @@ This is the python version of snake game. The rules are simple which if violated
 * The snake should not collide with the walls.
 * The snake should not feed on itself.
 
-The goal of the player is to attain the highest score possible.
+10 game points are awarded if the snake eats the fruit. The goal of the player is to attain the highest score possible.
 
 ## Game Control Keys
 
