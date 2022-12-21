@@ -106,7 +106,8 @@ class Game:
         Movement of the snake is increments of snake_crawl_unit_size, so the position of the fruit should
         be a multiple of crawl size in order to avoid misalignment btn the snake body and the fruit
         """
-        position_x = random.randint(1, self.window_width // self.snake_crawl_unit_size) * self.snake_crawl_unit_size
+        position_x = random.randint(1, self.window_width // self.snake_crawl_unit_size - self.snake_size) * \
+                     self.snake_crawl_unit_size
         position_y = random.randint(self.window_top_margin // self.snake_crawl_unit_size,
                                     self.window_height // self.snake_crawl_unit_size - self.snake_size) * \
                      self.snake_crawl_unit_size
