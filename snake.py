@@ -21,7 +21,7 @@ class Game:
         self.window_width = 500
         self.window_height = 500
         self.window_dimensions = (self.window_width, self.window_height)
-        self.window_caption = "Snake Game By Kirabo Ibrahim <3"
+        self.window_caption = "Snake Game"
         self.window = pygame.display.set_mode(self.window_dimensions)
         self.window.fill(self.window_fill_color)
         pygame.display.set_icon(pygame.image.load("./images/icon.png"))
