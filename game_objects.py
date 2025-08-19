@@ -2,7 +2,6 @@ import pygame
 
 from utils import Position
 
-
 class Snake:
     def __init__(self, position: Position, size: int = 10):
         self.__position = Position(position.x, position.y)
